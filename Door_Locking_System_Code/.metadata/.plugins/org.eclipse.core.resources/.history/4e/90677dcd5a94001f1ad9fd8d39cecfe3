@@ -1,0 +1,79 @@
+/*
+ * timer.c
+ *
+ *  Created on: Oct 27, 2024
+ *      Author: Mohamed
+ */
+
+
+#include "timer.h"
+#include "gpio.h"
+#include <avr/io.h>
+
+static volatile void (*g_callBackPtr_Timer0)(void) = NULL_PTR;
+static volatile void (*g_callBackPtr_Timer1)(void) = NULL_PTR;
+static volatile void (*g_callBackPtr_Timer2)(void) = NULL_PTR;
+
+
+/*interrupt service routine for timer0 OverFlow*/
+ISR(TIMER0_OVF_vect)
+{
+	if(g_Timers_callBackPtr[0] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[0]();
+	}
+}
+/*interrupt service routine for timer0 CTC*/
+ISR(TIMER0_COMP_vect)
+{
+	if(g_Timers_callBackPtr[0] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[0]();
+	}
+}
+
+/*************************** TIMER1 *******************************/
+
+/*interrupt service routine for timer1 Overflow*/
+ISR(TIMER1_OVF_vect)
+{
+	if(g_Timers_callBackPtr[1] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[1]();
+	}
+}
+
+/*interrupt service routine for timer1 CTC*/
+ISR(TIMER1_COMPA_vect)
+{
+	if(g_Timers_callBackPtr[1] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[1]();
+	}
+}
+
+/************************** TIMER2 **************************/
+
+/*interrupt service routine for timer2 Overflow*/
+ISR(TIMER2_OVF_vect)
+{
+	if(g_Timers_callBackPtr[2] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[2]();
+	}
+}
+
+/*interrupt service routine for timer2 CTC*/
+ISR(TIMER2_COMP_vect)
+{
+	if(g_Timers_callBackPtr[2] != NULL_PTR)
+	{
+		g_Timers_callBackPtr[2]();
+	}
+}
+void Timer_init(const Timer_ConfigType * Config_Ptr){
+
+	if(Config_Ptr -> timer_ID == TIMER0){
+
+	}
+}

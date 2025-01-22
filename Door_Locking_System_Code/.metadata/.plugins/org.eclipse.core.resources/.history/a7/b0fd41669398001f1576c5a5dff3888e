@@ -1,0 +1,228 @@
+/*
+ * main.c
+ *
+ *  Created on: Oct 26, 2024
+ *      Author: Mohamed Khaled
+ */
+
+#include "lcd.h"
+#include "keypad.h"
+#include "timer.h"
+#include "uart.h"
+#include <avr/io.h>
+#include <util/delay.h>
+
+#define CREATE_SYSTEM_PASSWARD 1
+#define CHECK_PASSWARD 2
+#define MAIN_OPTIONS 3
+#define OPEN_DOOR 4
+
+#define PASSWARD_LENGTH 5
+
+#define READY_BYTE 0xFF
+#define DONE_BYTE 0xF0
+
+#define RETRIES 3
+
+#define EQUAL_PASS 0x10
+#define NOT_EQUAL_PASS 0x11
+
+uint8 passward[PASSWARD_LENGTH], confirmed_passward[PASSWARD_LENGTH];
+uint8 application_steps = 1;
+
+// Add prototypes for functions used
+void get_passward(uint8* passward_array);
+void send_passward(uint8* passward_array);
+void send_byte(uint8 byte);
+uint8 receive_byte();  // Prototype for receive_byte function
+
+int main() {
+
+
+	SREG = (1 << 7);
+    UART_ConfigType Config_ptr = {Character_SIZE_8, EVEN_PARITY, ONE_BIT, 9600};
+    UART_init(&Config_ptr);
+
+    LCD_init();
+    uint8 check_pass; // Move declaration here
+    uint8 choice;     // Move declaration here
+
+    while (1) {
+        switch (application_steps) {
+            case CREATE_SYSTEM_PASSWARD:
+                LCD_clearScreen();
+                LCD_displayString("Plz Enter Pass: ");
+                LCD_moveCursor(1, 0);
+
+                get_passward(passward);  // getting passward from user
+
+                LCD_displayStringRowColumn(0, 0, "Plz re-enter the");
+                LCD_displayStringRowColumn(1, 0, "same pass: ");
+                LCD_moveCursor(1, 10);
+
+                get_passward(confirmed_passward);  // getting the password again to confirm
+
+                send_passward(passward);          // sending the first pass
+                send_passward(confirmed_passward);  // sending the second pass
+
+                application_steps = CHECK_PASSWARD;
+                break;
+
+            case CHECK_PASSWARD:
+                check_pass = receive_byte();  // Use the variable here
+
+                if (check_pass != EQUAL_PASS) {
+                    application_steps = CREATE_SYSTEM_PASSWARD;
+                } else {
+                    application_steps = MAIN_OPTIONS;
+                }
+                break;
+
+            case MAIN_OPTIONS:
+                LCD_clearScreen();
+                LCD_displayStringRowColumn(0, 0, "+ : OPEN DOOR");
+                LCD_displayStringRowColumn(1, 0, "- : CHANGE PASS");
+
+                choice = KEYPAD_getPressedKey();  // Use the variable here
+
+                while (choice != '+' && choice != '-') {
+                    choice = KEYPAD_getPressedKey();
+                }
+
+                LCD_clearScreen();
+                LCD_displayString("Plz Enter Old:  ");
+                LCD_moveCursor(1, 0);
+
+                get_passward(passward);
+                send_passward(passward);
+
+
+                send_byte(choice);
+                if (receive_byte() == EQUAL_PASS) {
+                    if (choice == '+') {
+                        application_steps = OPEN_DOOR;
+                    } else if (choice == '-') {
+                        application_steps = CREATE_SYSTEM_PASSWARD;
+                    }
+                }
+                else if (receive_byte() == NOT_EQUAL_PASS) {
+                    uint8_t count;
+                    for (count = 0; count < RETRIES; count++) {
+                        // Display "Wrong Password" message and prompt for re-entry
+                        LCD_clearScreen();
+                        LCD_displayStringRowColumn(0, 0, "Wrong Pass");
+                        LCD_displayStringRowColumn(1, 0, "Please Try Again");
+                        _delay_ms(2000); // Delay to show the message
+
+                        // Clear and prompt to enter the old password again
+                        LCD_clearScreen();
+                        LCD_displayString("Enter Old Pass:");
+                        LCD_moveCursor(1, 0);
+
+                        // Retrieve and send the entered password for validation
+                        get_passward(passward);
+                        send_passward(passward);
+
+                        // Check if the entered password matches the stored password
+                        if (receive_byte() == EQUAL_PASS) {
+                            // Password is correct; proceed to main options
+                            application_steps = MAIN_OPTIONS;
+                            LCD_clearScreen();
+                            break;
+                        } else {
+                            // Password is incorrect; increment retry count
+                            send_byte(NOT_EQUAL_PASS);
+                        }
+                    }
+
+                    // If all retries are used up, lock the system and display lock message
+                    if (count == RETRIES) {
+                        LCD_clearScreen();
+                        LCD_displayStringRowColumn(0, 1, "System LOCKED");
+                        LCD_displayStringRowColumn(1, 0, "Wait for 1 min");
+
+                        _delay_ms(60000); // Wait for 1 minute
+
+                        // Reset to main options after lock period
+                        application_steps = MAIN_OPTIONS;
+                        LCD_clearScreen();
+                    }
+                }
+                break;
+
+            case OPEN_DOOR:
+                LCD_clearScreen();
+                LCD_displayStringRowColumn(0, 1, "Door Unlocking");
+                LCD_displayStringRowColumn(1, 4, "Please Wait");
+
+                _delay_ms(15000);
+
+                LCD_clearScreen();
+                LCD_displayStringRowColumn(0, 0, "wait for people");
+                LCD_displayStringRowColumn(1, 3, "To Enter");
+
+                receive_byte();
+
+                LCD_clearScreen();
+                LCD_displayStringRowColumn(0, 1, "  Door Locking  ");
+
+                _delay_ms(15000);
+
+                application_steps = MAIN_OPTIONS;
+                break;
+        }
+    }
+}
+
+void get_passward(uint8* passward_array) {
+    uint8 key_pressed, counter;
+
+    for (counter = 0; counter < PASSWARD_LENGTH;) {
+        key_pressed = KEYPAD_getPressedKey();
+
+        if (key_pressed != '+' && key_pressed != '-' && key_pressed != '*' && key_pressed != '%' && key_pressed != '=') {
+            passward_array[counter] = key_pressed;
+            LCD_displayCharacter('*');
+            counter++;
+        }
+        _delay_ms(500);
+    }
+
+    while (KEYPAD_getPressedKey() != '=');
+}
+
+void send_passward(uint8* passward_array) {
+    UART_sendByte(READY_BYTE);
+
+    while (UART_recieveByte() != READY_BYTE);
+
+    for (uint8 i = 0; i < PASSWARD_LENGTH; i++) {
+        UART_sendByte(passward_array[i]);
+    }
+
+    while (UART_recieveByte() != DONE_BYTE);
+}
+
+void send_byte(uint8 byte) {
+    UART_sendByte(READY_BYTE);
+
+    while (UART_recieveByte() != READY_BYTE);
+
+    UART_sendByte(byte);
+
+    while (UART_recieveByte() != DONE_BYTE);
+}
+
+uint8 receive_byte() {
+    uint8 byte;
+
+    while (UART_recieveByte() != READY_BYTE);
+
+    UART_sendByte(READY_BYTE);
+
+    byte = UART_recieveByte();
+
+    UART_sendByte(DONE_BYTE);
+
+    return byte;
+}

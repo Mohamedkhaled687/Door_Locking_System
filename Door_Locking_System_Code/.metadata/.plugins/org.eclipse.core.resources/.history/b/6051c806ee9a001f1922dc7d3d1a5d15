@@ -1,0 +1,234 @@
+/*
+ * main.c
+ *
+ * Created on: Oct 26, 2024
+ * Author: Mohamed
+ */
+
+#include "external_eeprom.h"
+#include "PIR.h"
+#include "DC_MOTOR.h"
+#include "BUZZER.h"
+#include "UART.h"
+#include "PWM.h"
+#include "TWI.h"
+#include "timer.h"
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+/* Defines various stages for application functionality */
+#define PASSWARD_RECEIVING_STAGE  1
+#define CHECKING_PASSWARD_STAGE   2
+#define MAIN_OPTIONS_STAGE        3
+#define OPEN_DOOR_STAGE           4
+
+/* Password configuration */
+#define PASSWARD_LENGTH           5
+
+/* UART communication bytes for readiness and completion */
+#define READY_BYTE                0xFF
+#define DONE_BYTE                 0xF0
+
+/* Number of retry attempts */
+#define RETRIES                   2
+
+/* Password comparison results */
+#define EQUAL_PASS                0x10
+#define NOT_EQUAL_PASS            0x11
+
+/* Variables to hold password and confirmed password */
+uint8_t passward[PASSWARD_LENGTH], confirmed_passward[PASSWARD_LENGTH];
+/* Tracks the current application stage */
+uint8_t application_stage = PASSWARD_RECEIVING_STAGE;
+/* Tick counter for timer callback */
+uint8_t ticks = 0;
+
+/* Function declarations */
+void receive_passward(uint8_t *passward_array);
+void send_byte(uint8_t byte);
+uint8_t receive_byte();
+uint8_t check_passwards(uint8_t *passward_array1, uint8_t *passward_array2);
+void _delay_seconds(uint8_t seconds)
+void Timer_Callbackfunc();
+
+int main() {
+
+    /* Enable global interrupts */
+    sei();
+
+    /* UART configuration setup */
+    UART_ConfigType UART_configuartions = { Character_SIZE_8, EVEN_PARITY, ONE_BIT, 9600 };
+    UART_init(&UART_configuartions);
+
+    /* TWI (I2C) configuration setup */
+    TWI_ConfigType TWI_configurations = { 0x01, 0x02 };
+    TWI_init(&TWI_configurations);
+
+    /* Timer setup and callback function initialization */
+    Timer_ConfigType TIMER_configurations = { 0, 31250, TIMER1, F_CPU_256, COMPARE };
+    Timer_init(&TIMER_configurations);
+    Timer_setCallBack(&Timer_Callbackfunc, TIMER1);
+
+
+    /* Initialize peripherals */
+    Buzzer_init();
+    DC_Motor_init();
+    PIR_init();
+
+    while (1) {
+        switch (application_stage) {
+
+            /* Receive password and confirmation password, then proceed to check stage */
+            case PASSWARD_RECEIVING_STAGE:
+                receive_passward(passward);
+                receive_passward(confirmed_passward);
+                application_stage = CHECKING_PASSWARD_STAGE;
+                break;
+
+            /* Verify the password against the confirmation password */
+            case CHECKING_PASSWARD_STAGE: {
+                uint8_t passwards_check = check_passwards(passward, confirmed_passward);
+
+                /* If passwords match, save to EEPROM and proceed to main options */
+                if (passwards_check == EQUAL_PASS) {
+                    send_byte(EQUAL_PASS);
+                    EEPROM_writeArray(0x0000, passward, PASSWARD_LENGTH);
+                    application_stage = MAIN_OPTIONS_STAGE;
+                }
+                /* If passwords do not match, go back to password receiving stage */
+                else if (passwards_check == NOT_EQUAL_PASS) {
+                    send_byte(NOT_EQUAL_PASS);
+                    application_stage = PASSWARD_RECEIVING_STAGE;
+                }
+                break;
+            }
+
+            /* Main options stage to open door or reset password based on user input */
+            case MAIN_OPTIONS_STAGE: {
+                uint8_t passwards_check, choice;
+
+                /* Receive and verify entered password against stored password */
+                receive_passward(passward);
+                EEPROM_readArray(0x0000, confirmed_passward, PASSWARD_LENGTH);
+                passwards_check = check_passwards(passward, confirmed_passward);
+
+                /* If password is correct, send confirmation and check user choice */
+                if (passwards_check == EQUAL_PASS) {
+                    send_byte(EQUAL_PASS);
+                    choice = receive_byte();
+
+                    /* Open door or reset password based on user choice */
+                    if (choice == '+') {
+                        application_stage = OPEN_DOOR_STAGE;
+                    } else if (choice == '-') {
+                        application_stage = PASSWARD_RECEIVING_STAGE;
+                    }
+                }
+                /* If password is incorrect, allow retry attempts and activate buzzer if all fail */
+                else if (passwards_check == NOT_EQUAL_PASS) {
+                    uint8_t count;
+
+                    send_byte(NOT_EQUAL_PASS);
+
+                    /* Allow up to RETRIES attempts */
+                    for (count = 0; count < RETRIES; count++) {
+                        receive_passward(passward);
+                        EEPROM_readArray(0x0000, confirmed_passward, PASSWARD_LENGTH);
+
+                        if (check_passwards(passward, confirmed_passward) == EQUAL_PASS) {
+                            send_byte(EQUAL_PASS);
+                            application_stage = MAIN_OPTIONS_STAGE;
+                            break;
+                        } else {
+                            send_byte(NOT_EQUAL_PASS);
+                        }
+                    }
+
+                    /* Activate buzzer if password is incorrect after all retries */
+                    if (count == RETRIES) {
+                        Buzzer_on();
+
+                        _delay_
+                        Buzzer_off();
+                    }
+
+                    application_stage = MAIN_OPTIONS_STAGE;
+                }
+                break;
+            }
+
+            /* Open door sequence with motor rotation and PIR sensor check */
+            case OPEN_DOOR_STAGE:
+                PWM_Timer0_init();
+                DC_Motor_Rotate(DC_MOTOR_CW, 100);
+                _delay_ms(15000);
+                DC_Motor_Rotate(DC_MOTOR_STOP, 0);
+                _delay_ms(3000);
+
+                /* Wait until no motion is detected */
+                while (PIR_Motion() == MOTION);
+                send_byte(NO_MOTION);
+
+                /* Rotate motor counterclockwise to close door */
+                DC_Motor_Rotate(DC_MOTOR_CCW, 100);
+                _delay_ms(15000);
+                DC_Motor_Rotate(DC_MOTOR_STOP, 0);
+
+                application_stage = MAIN_OPTIONS_STAGE;
+                break;
+        }
+    }
+}
+
+/* Check if two password arrays match */
+uint8_t check_passwards(uint8_t *passward_array1, uint8_t *passward_array2) {
+    for (uint8_t count = 0; count < PASSWARD_LENGTH; count++) {
+        if (passward_array1[count] != passward_array2[count]) {
+            return NOT_EQUAL_PASS;
+        }
+    }
+    return EQUAL_PASS;
+}
+
+/* Receives a password through UART into the specified array */
+void receive_passward(uint8_t *passward_array) {
+    while (UART_recieveByte() != READY_BYTE);
+    UART_sendByte(READY_BYTE);
+
+    for (uint8_t count = 0; count < PASSWARD_LENGTH; count++) {
+        passward_array[count] = UART_recieveByte();
+    }
+
+    UART_sendByte(DONE_BYTE);
+}
+
+/* Sends a byte through UART with synchronization */
+void send_byte(uint8_t byte) {
+    UART_sendByte(READY_BYTE);
+    while (UART_recieveByte() != READY_BYTE);
+    UART_sendByte(byte);
+    while (UART_recieveByte() != DONE_BYTE);
+}
+
+/* Receives a byte through UART with synchronization */
+uint8_t receive_byte() {
+    uint8_t byte;
+    while (UART_recieveByte() != READY_BYTE);
+    UART_sendByte(READY_BYTE);
+    byte = UART_recieveByte();
+    UART_sendByte(DONE_BYTE);
+    return byte;
+}
+
+/* Timer callback function to increment tick count */
+void Timer_Callbackfunc() {
+    ticks++;
+}
+
+void _delay_seconds(uint8_t seconds) {
+    ticks = 0; // Reset tick counter
+
+    while (ticks < seconds); // Wait until the desired seconds have passed
+}
+

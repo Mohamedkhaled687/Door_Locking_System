@@ -1,0 +1,21 @@
+/*
+ * timer.c
+ *
+ *  Created on: Oct 27, 2024
+ *      Author: Mohamed
+ */
+
+
+#include "timer.h"
+#include "gpio.h"
+#include <avr/io.h>
+
+static volatile void (*g_callBackPtr)(void) = NULL_PTR;
+
+
+void Timer_init(const Timer_ConfigType * Config_Ptr){
+
+	if(Config_Ptr -> timer_ID == TIMER0){
+
+	}
+}

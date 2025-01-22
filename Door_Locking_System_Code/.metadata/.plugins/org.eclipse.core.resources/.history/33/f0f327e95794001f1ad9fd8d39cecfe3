@@ -1,0 +1,14 @@
+/*
+ * timer.c
+ *
+ *  Created on: Oct 27, 2024
+ *      Author: Mohamed
+ */
+
+
+#include "timer.h"
+#include "gpio.h"
+#include <avr/io.h>
+
+
+

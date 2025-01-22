@@ -1,0 +1,112 @@
+
+ /* timer.c
+ *
+ *  Created on: Oct 27, 2024
+ *      Author: Mohamed
+ */
+
+#include "timer.h"
+#include "gpio.h"
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+/* Callback function pointers for each timer */
+static volatile void (*g_callBackPtr_Timer0)(void) = NULL_PTR;
+static volatile void (*g_callBackPtr_Timer1)(void) = NULL_PTR;
+static volatile void (*g_callBackPtr_Timer2)(void) = NULL_PTR;
+
+/* ISR for Timer0 Overflow */
+ISR(TIMER0_OVF_vect)
+{
+	if(g_callBackPtr_Timer0 != NULL_PTR)
+	{
+		g_callBackPtr_Timer0();
+	}
+}
+
+/* ISR for Timer0 Compare Match */
+ISR(TIMER0_COMP_vect)
+{
+	if(g_callBackPtr_Timer0 != NULL_PTR)
+	{
+		g_callBackPtr_Timer0();
+	}
+}
+
+/*************************** TIMER1 *******************************/
+
+/* ISR for Timer1 Overflow */
+ISR(TIMER1_OVF_vect)
+{
+	if(g_callBackPtr_Timer1 != NULL_PTR)
+	{
+		g_callBackPtr_Timer1();
+	}
+}
+
+/* ISR for Timer1 Compare Match */
+ISR(TIMER1_COMPA_vect)
+{
+	if(g_callBackPtr_Timer1 != NULL_PTR)
+	{
+		g_callBackPtr_Timer1();
+	}
+}
+
+/************************** TIMER2 **************************/
+
+/* ISR for Timer2 Overflow */
+ISR(TIMER2_OVF_vect)
+{
+	if(g_callBackPtr_Timer2 != NULL_PTR)
+	{
+		g_callBackPtr_Timer2();
+	}
+}
+
+/* ISR for Timer2 Compare Match */
+ISR(TIMER2_COMP_vect)
+{
+	if(g_callBackPtr_Timer2 != NULL_PTR)
+	{
+		g_callBackPtr_Timer2();
+	}
+}
+
+
+void Timer_init(const Timer_ConfigType * Config_Ptr){
+	switch(Config_Ptr -> timer_ID){
+	case TIMER0:
+		TCNT0 = 0;
+		TCCR0 = 0;
+		OCR0 = 0;
+
+		OCIE0 = 0;
+		TOIE0 = 0;
+
+		TCNT0 = Config_Ptr -> timer_InitialValue;
+
+		switch(Config_Ptr -> timer_mode){
+		case OVERFLOW:
+			TCCR0 = (1 << FOC0) | (Config_Ptr -> timer_clock);
+			TIMSK = (1 << TOIE0);
+		}
+	}
+}
+
+/* Set callback function for a specific timer interrupt */
+void Timer_setCallBack(void(*a_ptr)(void), Timer_ID_Type a_timer_ID)
+{
+	switch(a_timer_ID)
+	{
+		case TIMER0:
+			g_callBackPtr_Timer0 = a_ptr;
+			break;
+		case TIMER1:
+			g_callBackPtr_Timer1 = a_ptr;
+			break;
+		case TIMER2:
+			g_callBackPtr_Timer2 = a_ptr;
+			break;
+	}
+}

@@ -1,0 +1,35 @@
+/*
+ * timer.h
+ *
+ *  Created on: Oct 27, 2024
+ *      Author: Mohamed
+ */
+
+#ifndef TIMER_H_
+#define TIMER_H_
+
+#include "std_types.h"
+
+/*******************************************************************************
+ *                                Definitions                                  *
+ *******************************************************************************/
+
+
+
+/*******************************************************************************
+ *                                Structs and Enums                            *
+ *******************************************************************************/
+
+typedef enum{
+	TIMER0 , TIMER1 , TIMER2
+}Timer_ID_Type ;
+
+typedef enum{
+	NO_CLOCK,F_CPU_CLOCK,F_CPU_8,F_CPU_64,F_CPU_256,F_CPU_1024
+}Timer_ClockType;
+
+typedef enum{
+	OVERFLOW , COMPARE
+}Timer_ModeType;
+
+#endif /* TIMER_H_ */
