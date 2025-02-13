@@ -4,6 +4,7 @@
 
 This project involves designing and implementing an Advanced Door Locker Security System using dual microcontrollers. The system provides secure and user-friendly access control for doors, integrating a Human-Machine Interface (HMI) and Control Electronic Control Units (ECUs) to handle password management, authentication, and automated door locking. Ideal for enhancing security in homes or businesses, the system combines hardware components such as a keypad, LCD, DC motor, PIR sensor, and EEPROM for a comprehensive security solution.
 
+![Screenshot 2024-11-01 153917](https://github.com/user-attachments/assets/3869ec8f-e879-4d32-ae1f-0931a2909fa1)
 ## Features
 
 - **Password Management and Authentication:**
@@ -64,9 +65,6 @@ This project involves designing and implementing an Advanced Door Locker Securit
 2. **Software Installation:**
    - Compile the code using an AVR-compatible compiler and upload it to the microcontrollers (HMI_ECU and Control_ECU).
 
-## Example
-
-![Screenshot 2024-11-01 153917](https://github.com/user-attachments/assets/3869ec8f-e879-4d32-ae1f-0931a2909fa1)
 
 ## Key Learnings
 
